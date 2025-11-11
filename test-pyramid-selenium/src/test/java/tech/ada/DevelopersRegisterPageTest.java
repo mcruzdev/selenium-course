@@ -1,146 +1,106 @@
 package tech.ada;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import java.time.Duration;
 
-import java.util.List;
-import java.util.UUID;
+import static org.openqa.selenium.support.ui.ExpectedConditions.*;
 
-public class DevelopersRegisterPageTest {
+public class DevelopersRegisterPageTest extends BaseTest {
 
-    static WebDriver webDriver;
-
-    public DevelopersRegisterPageTest() {
-        webDriver = new ChromeDriver();
-    }
-
+    // REQ004: Cadastro com Sucesso (Caminho Feliz)
     @Test
-    void deveCadastrarCorretamente() {
+    @DisplayName("REQ004 - Deve cadastrar um usuário com sucesso e verificar o redirecionamento")
+    void deveCadastrarUsuarioComSucesso() {
+        RegisterPage registerPage = new RegisterPage(driver);
+        registerPage.navigateToRegister(BASE_URL);
 
-        webDriver.get(Constants.BASE_URL + "/register");
+        // Preencher e submeter o formulário com dados válidos
+        registerPage.fillAndSubmitForm(
+                Constants.VALID_FIRST_NAME,
+                Constants.VALID_LAST_NAME,
+                Constants.VALID_EMAIL,
+                Constants.VALID_USERNAME,
+                Constants.VALID_PASSWORD
+        );
 
-        WebElement firstName = webDriver.findElement(By.id("firstName"));
-        firstName.sendKeys("Matheus");
+        // Esperar pelo redirecionamento para a página de sucesso
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
+        wait.until(urlContains("/register-successfully"));
 
-        WebElement lastName = webDriver.findElement(By.id("lastName"));
-        lastName.sendKeys("Cruz");
+        RegisterSuccessPage successPage = new RegisterSuccessPage(driver);
 
-        WebElement email = webDriver.findElement(By.id("email"));
-        email.sendKeys("matheus1@email.com");
+        // Verifica a mensagem de sucesso
+        Assertions.assertTrue(successPage.getSuccessMessage().isDisplayed(),
+                "A mensagem 'Registered with success!' deve ser exibida.");
 
-        WebElement username = webDriver.findElement(By.id("username"));
-        username.sendKeys("matheus3" + UUID.randomUUID());
+        // Verifica o link "Back to login"
+        Assertions.assertTrue(successPage.getBackToLoginLink().isDisplayed(),
+                "O link 'Back to login' deve ser exibido na página de sucesso.");
 
-        WebElement password = webDriver.findElement(By.id("password"));
-        password.sendKeys("123456");
-
-        // Se existir, você sempre deve utilizar o ID.
-        WebElement button = webDriver.findElement(By.tagName("button"));
-
-        button.click();
-
-        WebElement message = webDriver.findElement(By.cssSelector(".text-white.text-lg"));
-
-        Assertions.assertEquals("Registered with success!", message.getText());
-
-        WebElement linkBackToLogin = webDriver.findElement(By.linkText("Back to login"));
-
-        Assertions.assertTrue(linkBackToLogin.isDisplayed());
-
-        webDriver.quit();
+        // Clica no link e verifica o retorno ao login
+        successPage.clickBackToLogin();
+        wait.until(urlToBe(BASE_URL + "/login"));
+        Assertions.assertEquals(BASE_URL + "/login", driver.getCurrentUrl(),
+                "O link 'Back to login' deve retornar para a página de login.");
     }
 
+    // REQ005: Validação de Formulário
     @Test
-    void deveMostrarErroQuandoOFirstNameDoFormularioForInvalido() {
+    @DisplayName("REQ005 - Deve exibir mensagens de erro para submissão com dados inválidos")
+    void deveValidarFormularioComDadosInvalidos() {
+        RegisterPage registerPage = new RegisterPage(driver);
+        registerPage.navigateToRegister(BASE_URL);
 
-        webDriver.get(Constants.BASE_URL + "/register");
+        // Preencher com dados inválidos/vazios
+        registerPage.fillAndSubmitForm(
+                Constants.INVALID_SHORT_DATA, // First name < 2
+                "", // Last name vazio
+                Constants.INVALID_EMAIL, // Email inválido
+                Constants.INVALID_SHORT_DATA, // Username < 2
+                Constants.INVALID_SHORT_PASSWORD // Password < 8
+        );
 
-        WebElement firstName = webDriver.findElement(By.id("firstName"));
-        firstName.sendKeys("A"); // incorreto
+        // Verificar as mensagens de erro (REQ005)
+        Assertions.assertTrue(registerPage.getErrorForField("firstName").isDisplayed(), "Erro para 'First name' não exibido.");
+        Assertions.assertTrue(registerPage.getErrorForField("lastName").isDisplayed(), "Erro para 'Last name' não exibido.");
+        Assertions.assertTrue(registerPage.getErrorForField("email").isDisplayed(), "Erro para 'Email' não exibido.");
+        Assertions.assertTrue(registerPage.getErrorForField("username").isDisplayed(), "Erro para 'Username' não exibido.");
+        Assertions.assertTrue(registerPage.getErrorForField("password").isDisplayed(), "Erro para 'Password' não exibido.");
 
-        WebElement button = webDriver.findElement(By.tagName("button"));
-
-        // submit
-        button.click();
-
-        List<WebElement> elements = webDriver.findElements(By.cssSelector(".text-rose-500.text-sm.w-full"));
-
-        String expected = "First name must be at least 2 characters long";
-//        boolean found = false;
-//        for (WebElement element : elements) {
-//            String elementText = element.getText();
-//            found = elementText.equals(expected);
-//            if (found) {
-//                break;
-//            }
-//        }
-
-        //        Assertions.assertTrue(found);
-
-
-        boolean firstNameWithError = elements.stream()
-                .anyMatch(webElement -> webElement.getText().equals(expected));
-
-        Assertions.assertTrue(firstNameWithError);
-
-        webDriver.quit();
+        // Verificar que a URL não mudou
+        Assertions.assertEquals(BASE_URL + "/register", driver.getCurrentUrl(),
+                "A URL deve permanecer na página de cadastro em caso de erros.");
     }
 
-
+    // REQ006: Cadastro de Usuário Existente
     @Test
-    void naoDeveCadastrarUsuarioQueJaExiste() {
+    @DisplayName("REQ006 - Deve exibir mensagem de erro ao cadastrar usuário já existente")
+    void deveExibirErroAoCadastrarUsuarioExistente() {
+        RegisterPage registerPage = new RegisterPage(driver);
+        registerPage.navigateToRegister(BASE_URL);
 
-        // Se existir, você sempre deve utilizar o ID.
+        // Preencher com dados de um usuário que **já deve existir** (definido em Constants)
+        registerPage.fillAndSubmitForm(
+                Constants.VALID_FIRST_NAME,
+                Constants.VALID_LAST_NAME,
+                Constants.EXISTING_EMAIL,
+                Constants.EXISTING_USERNAME,
+                Constants.VALID_PASSWORD
+        );
 
-        String username = "matheus-" + UUID.randomUUID();
+        // Verificar a mensagem de erro específica
+        // É necessário esperar a mensagem de erro aparecer, pois é um retorno do servidor
+        new WebDriverWait(driver, Duration.ofSeconds(5))
+                .until(visibilityOf(registerPage.getUsernameTakenMessage()));
 
-        preencherFormDeCadastro(username);
+        Assertions.assertTrue(registerPage.getUsernameTakenMessage().isDisplayed(),
+                "A mensagem 'That username is taken. Try another.' deve ser exibida.");
 
-        WebElement button = webDriver.findElement(By.tagName("button"));
-
-        button.click();
-
-        WebElement linkBackToLogin = webDriver.findElement(By.linkText("Back to login"));
-
-        Assertions.assertTrue(linkBackToLogin.isDisplayed());
-
-        preencherFormDeCadastro(username);
-
-        button = webDriver.findElement(By.tagName("button"));
-
-        button.click();
-
-        // a mensagem de sucesso não deve aparecer
-        Assertions.assertThrows(org.openqa.selenium.NoSuchElementException.class, () -> {
-            webDriver.findElement(By.cssSelector(".text-white.text-lg"));
-        });
-
-        webDriver.quit();
+        Assertions.assertEquals(BASE_URL + "/register", driver.getCurrentUrl(),
+                "A URL não deve mudar (não deve ir para a página de sucesso).");
     }
-
-    void preencherFormDeCadastro(String username) {
-        webDriver.get(Constants.BASE_URL + "/register");
-
-        WebElement firstName = webDriver.findElement(By.id("firstName"));
-        firstName.sendKeys("Matheus");
-
-        WebElement lastName = webDriver.findElement(By.id("lastName"));
-        lastName.sendKeys("Cruz");
-
-        WebElement email = webDriver.findElement(By.id("email"));
-        email.sendKeys("matheus1@email.com");
-
-        WebElement usernameElement = webDriver.findElement(By.id("username"));
-        usernameElement.sendKeys(username);
-
-        WebElement password = webDriver.findElement(By.id("password"));
-        password.sendKeys("1234561@123");
-
-    }
-
-
 }
