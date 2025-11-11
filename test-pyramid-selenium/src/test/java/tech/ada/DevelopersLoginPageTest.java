@@ -1,81 +1,62 @@
 package tech.ada;
 
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import java.time.Duration;
 
-public class DevelopersLoginPageTest {
+public class DevelopersLoginPageTest extends BaseTest {
 
-    static WebDriver webDriver;
-
-    public DevelopersLoginPageTest() {
-        webDriver = new ChromeDriver();
-    }
-
-    @BeforeAll
-    static void beforeAll() {
-        System.out.println("Executa antes de todos os testes");
-    }
-
-    @BeforeEach
-    void beforeEach() {
-        System.out.println("Executa antes de cada teste");
-    }
-
-    @AfterEach
-    void afterEach() {
-        System.out.println("Executa depois de cada teste");
-    }
-
-    @AfterAll
-    static void afterAll() {
-        webDriver.quit();
-    }
-
+    // REQ001: Título da Aplicação
     @Test
-    void testaTituloDevelopers() {
-
-        webDriver.get(Constants.BASE_URL);
-
-        String title = webDriver.getTitle();
-
-        Assertions.assertEquals("Developers - Selenium Labs", title);
+    @DisplayName("REQ001 - Deve verificar o título da página de login")
+    void deveVerificarTituloDaPaginaDeLogin() {
+        driver.get(BASE_URL + "/login");
+        Assertions.assertEquals("Developers - Selenium Labs", driver.getTitle(),
+                "O título da página deve ser 'Developers - Selenium Labs'");
     }
 
+    // REQ002 e REQ003: Link de Cadastro
     @Test
-    void deveMostrarOLinkDeCadastro() {
+    @DisplayName("REQ002 & REQ003 - Deve visualizar e usar o link 'Register here'")
+    void deveRedirecionarParaOCadastro() {
+        LoginPage loginPage = new LoginPage(driver);
+        loginPage.navigateToLogin(BASE_URL);
 
-        webDriver.get(Constants.BASE_URL);
+        // REQ002: Verifica se o link está visível
+        Assertions.assertTrue(loginPage.getRegisterLink().isDisplayed(),
+                "O link 'Register here' deve estar visível.");
+        Assertions.assertEquals("Register here", loginPage.getRegisterLink().getText(),
+                "O texto do link está incorreto.");
 
-        WebElement element = webDriver.findElement(By.linkText("Register here"));
+        // REQ003: Clica no link e verifica o redirecionamento
+        loginPage.clickRegisterLink();
 
-        boolean displayed = element.isDisplayed();
+        new WebDriverWait(driver, Duration.ofSeconds(5))
+                .until(ExpectedConditions.urlToBe(BASE_URL + "/register"));
 
-        Assertions.assertTrue(displayed);
+        Assertions.assertEquals(BASE_URL + "/register", driver.getCurrentUrl(),
+                "Deve ser redirecionado para a página de cadastro (/register)");
     }
 
+    // REQ007: Login com Credenciais Erradas
     @Test
-    void quandoClicarNoLinkDeCadastroDeveSerRedirecionadoParaAPaginaDeCadastro() {
+    @DisplayName("REQ007 - Deve exibir mensagem de erro ao realizar login com credenciais erradas")
+    void deveFalharLoginComCredenciaisErradas() {
+        LoginPage loginPage = new LoginPage(driver);
+        loginPage.navigateToLogin(BASE_URL);
 
-        webDriver.get(Constants.BASE_URL);
+        // Preencher com credenciais erradas e submeter
+        loginPage.login("usuario-inexistente", "senha-invalida");
 
-        WebElement element = webDriver.findElement(By.linkText("Register here"));
+        // O teste deve permanecer na página de login e a mensagem deve ser visível
+        Assertions.assertTrue(loginPage.getErrorMessage().isDisplayed(),
+                "A mensagem de erro 'Invalid username or password' deve ser exibida.");
 
-        element.click();
-
-        String title = webDriver.getTitle();
-
-        String currentUrl = webDriver.getCurrentUrl();
-
-        Assertions.assertEquals("Developers - Register", title);
-
-        Assertions.assertEquals(Constants.BASE_URL + "/register", currentUrl);
+        // Verifica que o login falhou e não foi para a home
+        Assertions.assertFalse(driver.getCurrentUrl().contains("/home"),
+                "O login deve falhar e o usuário não deve ser redirecionado para a home.");
     }
 }
